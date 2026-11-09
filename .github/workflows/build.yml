@@ -1,0 +1,65 @@
+name: Build Persian thesis PDF
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install original template and compatibility fixes
+        shell: bash
+        run: |
+          set -e
+          curl -fsSL https://github.com/zarrabi/thesis-template/archive/refs/heads/master.tar.gz -o /tmp/upstream.tar.gz
+          mkdir -p /tmp/sharif-source
+          tar -xf /tmp/upstream.tar.gz --strip-components=1 -C /tmp/sharif-source
+          cp -a /tmp/sharif-source/. .
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          env = {'شکل':'figure','شمارش':'enumerate','فقرات':'itemize','لوح':'table','جدول':'tabular','وسط‌چین':'center'}
+          commands = {'فقره':'item','مرجع':'cite','رجوع':'ref','زیرقسمت':'subsection','قسمت':'section','شرح':'caption','خطپر':'hfill','فصل':'chapter','زیرنویس':'footnote','پانویس':'footnote','بدونتورفتگی':'noindent','پرشبلند':'bigskip','صفحهجدید':'newpage','سیاه':'bfseries','وسطچین':'centering','تنظیمازوسط':'centering','کوچک':'small'}
+          for p in Path('.').rglob('*.tex'):
+              s = p.read_text(encoding='utf-8')
+              s = re.sub(r'[\u202a-\u202e\u2066-\u2069]', '', s)
+              s = re.sub(r'\\[\u0600-\u06ff]+(?:\u200c[\u0600-\u06ff]+)+', lambda m:m.group().replace('\u200c',''), s)
+              for k,v in env.items():
+                  s = s.replace('\\شروع{'+k+'}', '\\begin{'+v+'}').replace('\\پایان{'+k+'}', '\\end{'+v+'}')
+              s = s.replace('\\شروع{','\\begin{').replace('\\پایان{','\\end{')
+              for k,v in commands.items():
+                  s = re.sub(r'\\'+k+r'(?![\u0600-\u06ff])', lambda m:'\\'+v, s)
+              s = re.sub(r'\\renewcommand(\{\\[\u0600-\u06ff]+\})', r'\\providecommand\1', s)
+              s = s.replace('\\renewcommand{\\ورودی}','\\newcommand{\\ورودی}')
+              s = s.replace('\\renewcommand{\\برچسب}','\\newcommand{\\برچسب}')
+              s = s.replace('[localise=on,extrafootnotefeatures]','[extrafootnotefeatures]')
+              s = s.replace('قالب استاندارد\\caption{','قالب استاندارد\\footnote{').replace('زیر آمده است.\\caption{','زیر آمده است.\\footnote{').replace('نیم‌فاصله\\caption{','نیم‌فاصله\\footnote{')
+              if p.as_posix() == 'chapters/preliminaries.tex':
+                  s = s.replace('test.drawio.pdf', 'triangles.pdf')
+              p.write_text(s, encoding='utf-8')
+          PY
+          rm -f thesis.pdf
+      - name: Save installed source files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || (git commit -m "Install thesis source files and graphics" && git push)
+      - name: Compile XeLaTeX
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: thesis.tex
+          latexmk_use_xelatex: true
+          args: -pdfxe -interaction=nonstopmode -halt-on-error -file-line-error
+      - name: Upload PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharif-thesis-pdf
+          path: thesis.pdf
+          if-no-files-found: error
