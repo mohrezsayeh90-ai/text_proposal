@@ -38,6 +38,7 @@ jobs:
               s = re.sub(r'\\renewcommand(\{\\[\u0600-\u06ff]+\})', r'\\providecommand\1', s)
               s = s.replace('\\renewcommand{\\ورودی}','\\newcommand{\\ورودی}')
               s = s.replace('\\renewcommand{\\برچسب}','\\newcommand{\\برچسب}')
+              s = s.replace('\\providecommand{\\ورودی}', '\\def\\ورودی').replace('\\providecommand{\\برچسب}', '\\def\\برچسب')
               s = s.replace('[localise=on,extrafootnotefeatures]','[extrafootnotefeatures]')
               s = s.replace('قالب استاندارد\\caption{','قالب استاندارد\\footnote{').replace('زیر آمده است.\\caption{','زیر آمده است.\\footnote{').replace('نیم‌فاصله\\caption{','نیم‌فاصله\\footnote{')
               if p.as_posix() == 'chapters/preliminaries.tex':
